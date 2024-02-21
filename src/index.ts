@@ -55,7 +55,7 @@ export class Counter {
 						return new Response('Invalid argument: type', { status: 400 })
 					}
 				}
-				return fetch('https://img.shields.io/badge/dynamic/json?' + query.toString())
+				return Response.redirect('https://img.shields.io/badge/dynamic/json?' + query.toString(), 302)
 			default:
 				await this.storage.put(name, value + 1)
 				return new Response((value + 1).toString(), { headers: { 'content-type': 'text/plain' } })

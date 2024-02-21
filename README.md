@@ -107,6 +107,8 @@ GET /github/youxam-cf-counter/badge?type=humanized&logo=github&label=Page%20view
 
 ![Page views](https://cf-counter.youxam.workers.dev/github/youxam-cf-counter/badge?type=humanized&logo=github&label=Page%20views&increment=true&?)
 
+Note: The `increment` parameter is set to `true` to increment the counter with each request. But github caches the badge, so the statistics are not correct in the badge.
+
 ## License
 
 [MIT](LICENSE)
