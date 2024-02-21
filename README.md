@@ -37,6 +37,11 @@ The Cloudflare Counter provides the following endpoints, accessible via HTTP req
   - Returns the current count in a human-readable format, appending appropriate suffixes.
 - **Get Count in JSON:** `GET /{namespace}/{name}/json`
   - Provides the current count and its human-readable format in JSON.
+- **Get Badges:** `GET /{namespace}/{name}/badge`
+	- Returns a badge image with the current count in SVG format.
+	- The `type` get parameter can be configured to display raw numbers(`number`) or humanized numbers(`humanized`).
+	- The `increment` get parameter can be set to `true` to increment the counter with each request. Default is `false`, which means the counter will not be incremented when the badge is requested.
+	- Other options are same as [shields.io](https://shields.io/badges/dynamic-json-badge).
 
 ### Namespaces
 
@@ -93,6 +98,14 @@ GET /year/revenue/json
 	"humanized": "1.23M"
 }
 ```
+
+**Get Badge:**
+
+```
+GET /github/youxam-cf-counter/badge?type=humanized&logo=github&label=Page%20views&increment=true
+```
+
+![Page views](https://cf-counter.youxam.workers.dev/github/youxam-cf-counter/badge?type=humanized&logo=github&label=Page%20views&increment=true)
 
 ## License
 

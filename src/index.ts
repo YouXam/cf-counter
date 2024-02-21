@@ -1,4 +1,5 @@
 function formatNumber(number: number) {
+	if (number < 1000) return number.toString();
 	const suffixes = ['', 'K', 'M', 'B', 'T'];
 	let suffixIndex = 0;
 	while (number >= 1000 && suffixIndex < suffixes.length - 1) {
@@ -39,6 +40,22 @@ export class Counter {
 			case 'json':
 				return new Response(JSON.stringify({ count: value, humanized: formatNumber(value) }),
 					{ headers: { 'content-type': 'application/json' } })
+			case 'badge':
+				const query = url.searchParams
+				query.set('url', url.origin + `/${namespace}/${name}/json`)
+				if (query.get('increment') === 'true')
+					await this.storage.put(name, value + 1)
+				if (!query.get('query')) {
+					const type = query.get('type') || 'humanized'
+					if (type === 'number') {
+						query.set('query', '$.count')
+					} else if (type === 'humanized') {
+						query.set('query', '$.humanized')
+					} else {
+						return new Response('Invalid argument: type', { status: 400 })
+					}
+				}
+				return fetch('https://img.shields.io/badge/dynamic/json?' + query.toString())
 			default:
 				await this.storage.put(name, value + 1)
 				return new Response((value + 1).toString(), { headers: { 'content-type': 'text/plain' } })
