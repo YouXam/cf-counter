@@ -105,7 +105,7 @@ GET /year/revenue/json
 GET /github/youxam-cf-counter/badge?type=humanized&logo=github&label=Page%20views&increment=true
 ```
 
-![Page views](https://cf-counter.youxam.workers.dev/github/youxam-cf-counter/badge?type=humanized&logo=github&label=Page%20views&increment=true)
+![Page views](https://cf-counter.youxam.workers.dev/github/youxam-cf-counter/badge?type=humanized&logo=github&label=Page%20views&increment=true&?)
 
 ## License
 
