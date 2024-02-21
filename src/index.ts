@@ -1,78 +1,101 @@
-/**
- * Welcome to Cloudflare Workers! This is your first Durable Objects application.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your Durable Object in action
- * - Run `npm run deploy` to publish your application
- *
- * Learn more at https://developers.cloudflare.com/durable-objects
- */
-
-/**
- * Associate bindings declared in wrangler.toml with the TypeScript type system
- */
-export interface Env {
-	// Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
-	// MY_KV_NAMESPACE: KVNamespace;
-	//
-	// Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
-	MY_DURABLE_OBJECT: DurableObjectNamespace;
-	//
-	// Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
-	// MY_BUCKET: R2Bucket;
-	//
-	// Example binding to a Service. Learn more at https://developers.cloudflare.com/workers/runtime-apis/service-bindings/
-	// MY_SERVICE: Fetcher;
-	//
-	// Example binding to a Queue. Learn more at https://developers.cloudflare.com/queues/javascript-apis/
-	// MY_QUEUE: Queue;
+function formatNumber(number: number) {
+	const suffixes = ['', 'K', 'M', 'B', 'T'];
+	let suffixIndex = 0;
+	while (number >= 1000 && suffixIndex < suffixes.length - 1) {
+		number /= 1000;
+		suffixIndex++;
+	}
+	const fixed = number.toFixed(2);
+	let end = fixed.length - 1;
+	while (fixed[end] === '0' || fixed[end] === '.') {
+		end--;
+	}
+	return fixed.slice(0, end + 1) + suffixes[suffixIndex];
 }
 
-/** A Durable Object's behavior is defined in an exported Javascript class */
-export class MyDurableObject {
-	/**
-	 * The constructor is invoked once upon creation of the Durable Object, i.e. the first call to
-	 * 	`DurableObjectStub::get` for a given identifier
-	 *
-	 * @param state - The interface for interacting with Durable Object state
-	 * @param env - The interface to reference bindings declared in wrangler.toml
-	 */
-	constructor(state: DurableObjectState, env: Env) {}
 
-	/**
-	 * The Durable Object fetch handler will be invoked when a Durable Object instance receives a
-	 * 	request from a Worker via an associated stub
-	 *
-	 * @param request - The request submitted to a Durable Object instance from a Worker
-	 * @returns The response to be sent back to the Worker
-	 */
+export interface Env {
+	COUNTER: DurableObjectNamespace;
+}
+
+export class Counter {
+	storage: DurableObjectStorage;
+	constructor(state: DurableObjectState, env: Env) {
+		this.storage = state.storage;
+	}
 	async fetch(request: Request): Promise<Response> {
-		return new Response('Hello World');
+		const url = new URL(request.url)
+		const paths = url.pathname.split('/').filter(Boolean)
+		const [namespace, name, action] = paths
+		if (['minute', 'hour', 'day', 'month', 'year'].includes(namespace)) {
+			await this.setSpecialNamespaceAlarm(namespace)
+		}
+		const value: number = await this.storage.get(name) || 0
+		switch (action) {
+			case 'get':
+				return new Response(value.toString(), { headers: { 'content-type': 'text/plain' } })
+			case 'humanized':
+				return new Response(formatNumber(value), { headers: { 'content-type': 'text/plain' } })
+			case 'json':
+				return new Response(JSON.stringify({ count: value, humanized: formatNumber(value) }),
+					{ headers: { 'content-type': 'application/json' } })
+			default:
+				await this.storage.put(name, value + 1)
+				return new Response((value + 1).toString(), { headers: { 'content-type': 'text/plain' } })
+		}
+	}
+
+	async setSpecialNamespaceAlarm(namepsace: string) {
+		if (await this.storage.getAlarm()) {
+			return
+		}
+		const time = new Date()
+		switch (namepsace) {
+			case 'year':
+				time.setMonth(0)
+				if (namepsace === 'year')
+					time.setFullYear(time.getFullYear() + 1)
+			case 'month':
+				time.setDate(1)
+				if (namepsace === 'month')
+					time.setMonth(time.getMonth() + 1)
+			case 'day':
+				time.setHours(0)
+				if (namepsace === 'day')
+					time.setDate(time.getDate() + 1)
+			case 'hour':
+				time.setMinutes(0)
+				if (namepsace === 'hour')
+					time.setHours(time.getHours() + 1)
+			case 'minute':
+				time.setSeconds(0)
+				time.setMilliseconds(0)
+				if (namepsace === 'minute')
+					time.setMinutes(time.getMinutes() + 1)
+				break
+			default:
+				return
+		}
+		console.log('set alarm： ', time.toLocaleString())
+		await this.storage.setAlarm(time.getTime())
+	}
+
+	async alarm() {
+		this.storage.deleteAll()
 	}
 }
 
 export default {
-	/**
-	 * This is the standard fetch handler for a Cloudflare Worker
-	 *
-	 * @param request - The request submitted to the Worker from the client
-	 * @param env - The interface to reference bindings declared in wrangler.toml
-	 * @param ctx - The execution context of the Worker
-	 * @returns The response to be sent back to the client
-	 */
+
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		// We will create a `DurableObjectId` using the pathname from the Worker request
-		// This id refers to a unique instance of our 'MyDurableObject' class above
-		let id: DurableObjectId = env.MY_DURABLE_OBJECT.idFromName(new URL(request.url).pathname);
-
-		// This stub creates a communication channel with the Durable Object instance
-		// The Durable Object constructor will be invoked upon the first call for a given id
-		let stub: DurableObjectStub = env.MY_DURABLE_OBJECT.get(id);
-
-		// We call `fetch()` on the stub to send a request to the Durable Object instance
-		// The Durable Object instance will invoke its fetch handler to handle the request
+		const url = new URL(request.url)
+		const paths = url.pathname.split('/').filter(Boolean)
+		if (paths.length < 2) {
+			return new Response('Not Found', { status: 404 });
+		}
+		let id: DurableObjectId = env.COUNTER.idFromName(paths[0]);
+		let stub: DurableObjectStub = env.COUNTER.get(id);
 		let response = await stub.fetch(request);
-
 		return response;
 	},
 };
